@@ -1,30 +1,14 @@
-import random
-import re
-import sys
-import subprocess
 import json
 from parse import parse_ros2_msg, parse_ros2_srv, parse_ros2_action
 from user_interface import gather_project_config
-
-command = ["ros2", "interface", "list"]
-
-interface_list = subprocess.run(command, capture_output=True, text=True)
-
-if interface_list.returncode != 0:
-    print("Error executing command:", interface_list.stderr, file=sys.stderr)
-    print("Check if ros2 is sourced")
-    sys.exit(interface_list.returncode)
-
-pattern = re.compile(r'^\s*([\w_]+)/(\w+)/([\w_]+)$', re.MULTILINE)
-
-result = {}
-
-for match in pattern.finditer(interface_list.stdout):
-    package, iface_type, type_name = match.groups()
-    result.setdefault(package, {}).setdefault(iface_type, []).append(type_name)
+from ros_info_utility import get_all_interfaces
 
 
-config = gather_project_config(result)
+all_interfaces = get_all_interfaces()
+
+print(json.dumps(all_interfaces, indent=2))
+
+config = gather_project_config(all_interfaces)
 
 # command = ["ros2", "interface", "show", f"{pkg}/{com_type}/{inter}", "--no-comments"]
 
