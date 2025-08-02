@@ -4,7 +4,7 @@ import sys
 import subprocess
 import json
 from parse import parse_ros2_msg, parse_ros2_srv, parse_ros2_action
-from user_interface import get_info
+from user_interface import gather_project_config
 
 command = ["ros2", "interface", "list"]
 
@@ -24,11 +24,7 @@ for match in pattern.finditer(interface_list.stdout):
     result.setdefault(package, {}).setdefault(iface_type, []).append(type_name)
 
 
-# pkg = random.choice(list(result.keys()))
-# com_type = random.choice(list(result[pkg].keys()))
-# inter = random.choice(result[pkg][com_type])
-
-print(get_info(3))
+config = gather_project_config(result)
 
 # command = ["ros2", "interface", "show", f"{pkg}/{com_type}/{inter}", "--no-comments"]
 
