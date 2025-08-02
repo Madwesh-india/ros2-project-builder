@@ -1,7 +1,5 @@
-
 from collections import deque
 import re
-
 
 def parse_ros2_msg(desc: str):
     """

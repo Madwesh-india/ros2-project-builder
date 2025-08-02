@@ -39,7 +39,7 @@ class CleanTildePathCompleter(Completer):
             if not entry.startswith(prefix):
                 continue
 
-            display = entry + '/'
+            display = entry
             yield Completion(display, start_position=-len(prefix))
 
 def _get_workspace_path(use_existing: bool) -> str:
@@ -76,14 +76,13 @@ def _validate_name(name: str, name_type: str = "base") -> bool:
     Validate a name according to ROS 2 naming conventions
     Args:
         name: Name to validate
-        name_type: Type of name ("base", "package", "hierarchical")
+        name_type: Type of name ("base", "package", "executable")
     Returns:
         bool: True if valid, False otherwise
     """
     patterns = {
         "base": r"^[a-zA-Z_][a-zA-Z0-9_]*$",          # Node names, component names
         "package": r"^[a-z][a-z0-9_]*$",               # Package names (lowercase only)
-        "hierarchical": r"^[a-z][a-zA-Z0-9_/]*$",           # Topic, service, action names (can be empty)
     }
     
     if name_type not in patterns:
@@ -98,14 +97,13 @@ def _get_validated_name(prompt_text: str, default: str = "", name_type: str = "b
     Args:
         prompt_text: Description of the value being requested
         default: Default value to suggest
-        name_type: Type of name to validate ("base", "package", "hierarchical")
+        name_type: Type of name to validate ("base", "package", "executable")
     Returns:
         Validated name string
     """
     error_messages = {
         "base": "must start with a letter/underscore and contain only alphanumerics/underscores",
         "package": "must be lowercase, start with a letter, and contain only alphanumerics/underscores",
-        "hierarchical": "must contain only alphanumerics, underscores, and slashes",
     }
 
     while True:
@@ -116,10 +114,6 @@ def _get_validated_name(prompt_text: str, default: str = "", name_type: str = "b
         
         if name_type == "executable":
             name_type = "base"
-
-        # Allow empty for hierarchical names (like namespaces)
-        if name_type == "hierarchical" and value == "":
-            return value
             
         if _validate_name(value, name_type):
             return value
@@ -387,11 +381,6 @@ def gather_project_config(interfaces: dict) -> dict:
             default="",
             name_type="executable"
         ),
-        "namespace": _get_validated_name(
-            "Enter node namespace (default ''):",
-            default="",
-            name_type="hierarchical"
-        )
     }
 
     # Component quantities
@@ -408,15 +397,14 @@ def gather_project_config(interfaces: dict) -> dict:
     })
 
     # C++ specific configuration
-    if config["language"] == "cpp":
-        config["executor"] = questionary.select(
-            "Select executor type:",
-            choices=[
-                "single_threaded",
-                "multi_threaded"
-            ],
-            default="single_threaded"
-        ).ask()
+    config["executor"] = questionary.select(
+        "Select executor type:",
+        choices=[
+            "single_threaded",
+            "multi_threaded"
+        ],
+        default="single_threaded"
+    ).ask()
 
     # Detailed component configuration
     if config["publishers"] > 0:
