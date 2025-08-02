@@ -4,6 +4,7 @@ import sys
 import subprocess
 import json
 from parse import parse_ros2_msg, parse_ros2_srv, parse_ros2_action
+from user_interface import get_info
 
 command = ["ros2", "interface", "list"]
 
@@ -23,21 +24,23 @@ for match in pattern.finditer(interface_list.stdout):
     result.setdefault(package, {}).setdefault(iface_type, []).append(type_name)
 
 
-pkg = random.choice(list(result.keys()))
-com_type = random.choice(list(result[pkg].keys()))
-inter = random.choice(result[pkg][com_type])
+# pkg = random.choice(list(result.keys()))
+# com_type = random.choice(list(result[pkg].keys()))
+# inter = random.choice(result[pkg][com_type])
 
-command = ["ros2", "interface", "show", f"{pkg}/{com_type}/{inter}", "--no-comments"]
+print(get_info(3))
 
-interface_show = subprocess.run(command, capture_output=True, text=True)
+# command = ["ros2", "interface", "show", f"{pkg}/{com_type}/{inter}", "--no-comments"]
 
-print(f"{pkg}/{com_type}/{inter}")
+# interface_show = subprocess.run(command, capture_output=True, text=True)
 
-print(interface_show.stdout)
+# print(f"{pkg}/{com_type}/{inter}")
 
-if com_type == "msg":
-    print(json.dumps(parse_ros2_msg(interface_show.stdout), indent=2))
-elif com_type == "srv":
-    print(json.dumps(parse_ros2_srv(interface_show.stdout), indent=2))
-elif com_type == "action":
-    print(json.dumps(parse_ros2_action(interface_show.stdout), indent=2))
+# print(interface_show.stdout)
+
+# if com_type == "msg":
+#     print(json.dumps(parse_ros2_msg(interface_show.stdout), indent=2))
+# elif com_type == "srv":
+#     print(json.dumps(parse_ros2_srv(interface_show.stdout), indent=2))
+# elif com_type == "action":
+#     print(json.dumps(parse_ros2_action(interface_show.stdout), indent=2))
