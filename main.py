@@ -3,7 +3,7 @@ import re
 import sys
 import subprocess
 import json
-from parse import parse_ros2_msg
+from parse import parse_ros2_msg, parse_ros2_srv, parse_ros2_action
 
 command = ["ros2", "interface", "list"]
 
@@ -35,5 +35,9 @@ print(f"{pkg}/{com_type}/{inter}")
 
 print(interface_show.stdout)
 
-print(json.dumps(parse_ros2_msg(interface_show.stdout), indent=2))
-
+if com_type == "msg":
+    print(json.dumps(parse_ros2_msg(interface_show.stdout), indent=2))
+elif com_type == "srv":
+    print(json.dumps(parse_ros2_srv(interface_show.stdout), indent=2))
+elif com_type == "action":
+    print(json.dumps(parse_ros2_action(interface_show.stdout), indent=2))
