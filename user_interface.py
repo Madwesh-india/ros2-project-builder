@@ -70,6 +70,79 @@ def _get_workspace_path(use_existing: bool) -> str:
             except OSError as e:
                 print(f"[ERROR] Workspace creation failed: {str(e)}")
 
+def _detect_package_language(pkg_path):
+    """Detect whether package is Python or C++ based on files present."""
+    if os.path.exists(os.path.join(pkg_path, 'package.xml')):
+        if os.path.exists(os.path.join(pkg_path, 'setup.py')) or os.path.exists(os.path.join(pkg_path, 'setup.cfg')):
+            return "python"
+        elif os.path.exists(os.path.join(pkg_path, 'CMakeLists.txt')):
+            return "cpp"
+    return None
+
+def _validate_package_and_executable(config):
+    while True:
+        pkg_path = os.path.join(config["workspace_path"], 'src', config["package_name"])
+        pkg_exists = os.path.exists(pkg_path)
+        language = _detect_package_language(pkg_path) if pkg_exists else None
+
+        if pkg_exists:
+            print(f"\nPackage '{config['package_name']}' already exists.")
+            if language == config["language"]:
+                print(f"Package is already using language: {language}")
+                reuse = questionary.confirm("Do you want to continue with this package?").ask()
+                if not reuse:
+                    config["package_name"] = _get_validated_name(
+                        "Enter a new package name:",
+                        name_type="package"
+                    )
+                    continue
+            else:
+                print(f"Package exists but uses a different language ({language}).")
+                choice = questionary.select(
+                    "What do you want to do?",
+                    choices=[
+                        "Change package name",
+                        f"Change language to '{language}' and continue"
+                    ]
+                ).ask()
+
+                if choice == "Change package name":
+                    config["package_name"] = _get_validated_name(
+                        "Enter a new package name:",
+                        name_type="package"
+                    )
+                else:
+                    config["language"] = language
+
+                continue
+            
+            while True:
+                # Check executable file
+                exec_name = config['executable'] if config['executable'] else config['node_name']
+                exec_filename = f"{config['package_name']}/{exec_name}_node.py" if config["language"] == "python" else f"src/{exec_name}_node.cpp"
+                exec_path = os.path.join(pkg_path, exec_filename)
+                print(exec_path)
+                if os.path.exists(exec_path):
+                    print(f"\nExecutable '{exec_filename}' already exists in the package.")
+
+                    if config['executable']:
+                        config['executable'] = _get_validated_name(
+                            "Enter a new executable name:",
+                            name_type="executable"
+                        )
+                    else:
+                        config['node_name'] = _get_validated_name(
+                            "Enter a new node_name name:",
+                            name_type="base"
+                        )
+                    continue
+                else:
+                    break
+
+        break
+
+    return config
+
 
 def _validate_name(name: str, name_type: str = "base") -> bool:
     """
@@ -382,6 +455,8 @@ def gather_project_config(interfaces: dict) -> dict:
             name_type="executable"
         ),
     }
+
+    config = _validate_package_and_executable(config)
 
     # Component quantities
     print("\nComponent Quantities")

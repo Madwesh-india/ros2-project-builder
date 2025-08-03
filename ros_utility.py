@@ -129,6 +129,10 @@ def get_interface_details(interface: str) -> Dict:
         raise ValueError(f"Unsupported interface type: {interface_type}")
 
 
+import os
+import subprocess
+import sys
+
 def create_ros_pkg(path: str, package_name: str, language: str) -> bool:
     """
     Create a ROS 2 package
@@ -151,6 +155,12 @@ def create_ros_pkg(path: str, package_name: str, language: str) -> bool:
         print(f"Error: Unsupported language '{language}'", file=sys.stderr)
         return False
 
+    # Check if package already exists
+    pkg_path = os.path.join(src_path, package_name)
+    if os.path.exists(pkg_path):
+        print(f"Package '{package_name}' already exists at {pkg_path}")
+        return False
+
     # Configure command based on language
     build_type, deps = ("ament_python", "rclpy") if language == "python" else ("ament_cmake", "rclcpp")
     
@@ -171,7 +181,7 @@ def create_ros_pkg(path: str, package_name: str, language: str) -> bool:
             text=True,
             check=True
         )
-        print(f"Success! Package created at: {src_path}")
+        print(f"Success! Package created at: {pkg_path}")
         return True
         
     except subprocess.CalledProcessError as e:
@@ -181,6 +191,7 @@ def create_ros_pkg(path: str, package_name: str, language: str) -> bool:
     except FileNotFoundError:
         print("Error: 'ros2' command not found - is ROS 2 sourced?", file=sys.stderr)
         return False
+
 
 def add_console_script_to_setup(setup_path, new_entry):
     with open(setup_path, 'r') as file:
@@ -284,27 +295,21 @@ def update_cmakelists(cmake_path, pkg_name, node_name, deps):
         deps_line = ' '.join(deps)
         text += f'\nament_target_dependencies({node_name}_node {deps_line})'
 
-    # Ensure install(TARGETS ...) includes the node
-    install_regex = re.compile(r'install\s*\(\s*TARGETS\s+([^\)]+?)\)', re.DOTALL)
-    match = install_regex.search(text)
-    if match:
-        targets = match.group(1).split()
-        if f"{node_name}_node" not in targets:
-            new_targets = ' '.join(targets + [f"{node_name}_node"])
-            text = install_regex.sub(f'install(TARGETS {new_targets})', text)
-    else:
-        text += f'\ninstall(TARGETS {node_name}_node DESTINATION lib/${{PROJECT_NAME}})'
+    # Ensure separate install(TARGETS ...) line for this node
+    install_line = f'install(TARGETS {node_name}_node DESTINATION lib/${{PROJECT_NAME}})'
+    if install_line not in text:
+        text += f'\n{install_line}'
 
-    # Append ament_package at the end
+    # Ensure only one ament_package() at the end
+    text = re.sub(r'\n?ament_package\(\)\n?', '', text)
     text += '\nament_package()\n'
 
     with open(cmake_path, 'w') as f:
         f.write(text)
 
     print(f"→ Updated {cmake_path}")
-import xml.etree.ElementTree as ET
-from xml.dom import minidom
 
+    
 def update_package_xml(package_xml_path, deps):
     """
     Load package.xml, add <depend>DEP</depend> for each missing dep, and write back (cleaned & prettified).
