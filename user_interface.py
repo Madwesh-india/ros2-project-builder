@@ -295,8 +295,8 @@ def _configure_components(count: int, comp_type: str, interfaces: dict) -> list:
         if not interface:
             continue
             
-        # QoS needed for publishers, subscribers, and actions
-        if comp_type in ["Publisher", "Subscriber", "ActionServer", "ActionClient"]:
+        # QoS needed for publishers, subscribers
+        if comp_type in ["Publisher", "Subscriber"]:#, "ActionServer", "ActionClient"
             qos = _configure_qos_profile(comp_type)
         else:
             qos = None

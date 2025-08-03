@@ -4,6 +4,8 @@ import subprocess
 import sys
 from typing import Dict, List
 from parse import parse_ros2_msg, parse_ros2_srv, parse_ros2_action
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
 
 
 def get_all_interfaces() -> Dict[str, Dict[str, List[str]]]:
@@ -179,6 +181,175 @@ def create_ros_pkg(path: str, package_name: str, language: str) -> bool:
     except FileNotFoundError:
         print("Error: 'ros2' command not found - is ROS 2 sourced?", file=sys.stderr)
         return False
+
+def add_console_script_to_setup(setup_path, new_entry):
+    with open(setup_path, 'r') as file:
+        content = file.read()
+
+    # Match entry_points console_scripts block
+    pattern = r"(entry_points\s*=\s*{\s*['\"]console_scripts['\"]\s*:\s*\[\s*)([^]]*?)(\s*\])"
+    match = re.search(pattern, content, re.DOTALL)
+
+    if not match:
+        print("Could not find 'console_scripts' entry_points block.")
+        return
+
+    prefix, middle, suffix = match.groups()
+
+    # Parse existing entries
+    entries = [e.strip().strip('"\'') for e in middle.split(',') if e.strip()]
+    if new_entry in entries:
+        print(f"'{new_entry}' already exists in console_scripts.")
+        return
+
+    entries.append(new_entry)
+    new_middle = ',\n        '.join(f"'{e}'" for e in entries)
+
+    new_block = f"{prefix}{new_middle}{suffix}"
+    updated_content = re.sub(pattern, new_block, content, flags=re.DOTALL)
+
+    with open(setup_path, 'w') as file:
+        file.write(updated_content)
+
+    print(f"Added '{new_entry}' to console_scripts.")
+
+def collect_ros_deps(config):
+    """
+    Scan your config.json and pull out all unique ROS packages you need to depend on.
+    """
+    deps = set()
+
+    def pkg_from_type(t):
+        # e.g. "nav_msgs/msg/OccupancyGrid" -> "nav_msgs"
+        return t.split('/')[0]
+
+    for pub in config.get("publisher_configs", []):
+        deps.add(pkg_from_type(pub["type"]))
+    for sub in config.get("subscriber_configs", []):
+        deps.add(pkg_from_type(sub["type"]))
+    for cli in config.get("client_configs", []):
+        deps.add(pkg_from_type(cli["type"]))
+    for srv in config.get("service_configs", []):
+        deps.add(pkg_from_type(srv["type"]))
+    for action in config.get("action_server_configs", []):
+        deps.add(pkg_from_type(action["type"]))
+        deps.add("rclcpp_action")
+    for action in config.get("action_client_configs", []):
+        deps.add(pkg_from_type(action["type"]))
+        deps.add("rclcpp_action")
+    # plus always rclcpp
+    deps.add("rclcpp")
+    deps.add("rclcpp_action")
+    return sorted(deps)
+
+def update_cmakelists(cmake_path, pkg_name, node_name, deps):
+    """
+    Updates CMakeLists.txt to:
+    - Add missing find_package(...) lines after '# find dependencies'
+    - Add executable + ament_target_dependencies
+    - Ensure install(TARGETS ...) is present
+    - Move ament_package() to the end if needed
+    """
+    with open(cmake_path, 'r') as f:
+        text = f.read()
+
+    # Collect existing find_package calls
+    existing_packages = set(re.findall(r'find_package\((\w+)\s+REQUIRED\)', text))
+
+    # Generate new find_package lines
+    new_fp_lines = [f'find_package({dep} REQUIRED)' for dep in deps if dep not in existing_packages]
+
+    if new_fp_lines:
+        insert_pos = text.find("# find dependencies")
+        if insert_pos != -1:
+            # Insert after the '# find dependencies' line
+            insert_pos = text.find('\n', insert_pos) + 1
+        else:
+            # Fallback: after project(...)
+            match = re.search(r'(project\(.*?\))', text)
+            if match:
+                insert_pos = match.end() + 1
+            else:
+                insert_pos = 0  # insert at start if nothing found
+        text = text[:insert_pos] + '\n'.join(new_fp_lines) + '\n' + text[insert_pos:]
+
+    # Remove ament_package() to reappend at the end
+    text = re.sub(r'\n?ament_package\(\)\n?', '', text)
+
+    # Append executable and dependencies
+    if f'add_executable({node_name}_node' not in text:
+        text += f'\n\n# Auto-generated node\nadd_executable({node_name}_node src/{node_name}_node.cpp)'
+
+    if f'ament_target_dependencies({node_name}_node' not in text:
+        deps_line = ' '.join(deps)
+        text += f'\nament_target_dependencies({node_name}_node {deps_line})'
+
+    # Ensure install(TARGETS ...) includes the node
+    install_regex = re.compile(r'install\s*\(\s*TARGETS\s+([^\)]+?)\)', re.DOTALL)
+    match = install_regex.search(text)
+    if match:
+        targets = match.group(1).split()
+        if f"{node_name}_node" not in targets:
+            new_targets = ' '.join(targets + [f"{node_name}_node"])
+            text = install_regex.sub(f'install(TARGETS {new_targets})', text)
+    else:
+        text += f'\ninstall(TARGETS {node_name}_node DESTINATION lib/${{PROJECT_NAME}})'
+
+    # Append ament_package at the end
+    text += '\nament_package()\n'
+
+    with open(cmake_path, 'w') as f:
+        f.write(text)
+
+    print(f"→ Updated {cmake_path}")
+import xml.etree.ElementTree as ET
+from xml.dom import minidom
+
+def update_package_xml(package_xml_path, deps):
+    """
+    Load package.xml, add <depend>DEP</depend> for each missing dep, and write back (cleaned & prettified).
+    """
+    tree = ET.parse(package_xml_path)
+    root = tree.getroot()
+
+    # find existing <depend> tags
+    existing = {d.text for d in root.findall('depend')}
+
+    # Find position to insert new <depend> elements
+    insert_at = None
+    for idx, el in enumerate(root):
+        if el.tag == 'depend':
+            insert_at = idx
+            break
+    if insert_at is None:
+        for idx, el in enumerate(root):
+            if el.tag in ('description', 'maintainer'):
+                insert_at = idx + 1
+                break
+    if insert_at is None:
+        insert_at = len(root)
+
+    # Insert new dependencies
+    for d in deps:
+        if d not in existing:
+            new = ET.Element('depend')
+            new.text = d
+            root.insert(insert_at, new)
+            insert_at += 1
+
+    # Convert and clean up the output
+    rough_string = ET.tostring(root, encoding='utf-8')
+    reparsed = minidom.parseString(rough_string)
+    pretty_xml = reparsed.toprettyxml(indent="  ")
+
+    # Remove excessive blank lines
+    clean_lines = [line for line in pretty_xml.split('\n') if line.strip()]
+    final_xml = '\n'.join(clean_lines) + '\n'
+
+    with open(package_xml_path, 'w', encoding='utf-8') as f:
+        f.write(final_xml)
+
+    print(f"→ Updated {package_xml_path}")
 
 if __name__ == "__main__":
     print(get_interface_details("std_msgs/msg/Bool"))
