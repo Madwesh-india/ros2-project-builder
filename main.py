@@ -10,11 +10,8 @@ from template.python_template import generate_python_code
 import json
 
 def main():
-    # all_interfaces = get_all_interfaces()
-    # config = gather_project_config(all_interfaces)
-
-    with open("sample.json") as f:
-        config = json.load(f)
+    all_interfaces = get_all_interfaces()
+    config = gather_project_config(all_interfaces)
 
     if not config["executable"]:
         config["executable"] = config["node_name"]
