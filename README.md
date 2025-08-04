@@ -36,7 +36,7 @@ cd ros2-project-builder
 pip install -r requirements.txt
 ````
 
-> **Note**: Requires Python 3.8+ and ROS 2 (tested with Humble/Foxy/Galactic).
+> **Note**: Requires Python 3.8+ and ROS 2 (tested with Humble/Jazzy).
 
 ---
 
