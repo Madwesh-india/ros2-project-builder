@@ -13,9 +13,21 @@ import os
 import re
 
 class CleanTildePathCompleter(Completer):
+    """
+    Custom path completer that expands '~' and filters directory suggestions
+
+    This completer:
+        - Expands '~' to the user's home directory
+        - Suggests only directory names (excluding files)
+        - Ignores hidden directories (those starting with '.')
+        - Only suggests matches that begin with the input prefix
+
+    Methods:
+        get_completions(document, complete_event): Yields matching Completion suggestions
+    """
     def get_completions(self, document, complete_event):
         text = document.text_before_cursor.strip()
-        
+
         # Don't show completions if input is just "~"
         if text == "~":
             return

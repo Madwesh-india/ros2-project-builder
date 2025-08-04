@@ -10,6 +10,20 @@ from template.python_template import generate_python_code
 import json
 
 def main():
+    """
+    Entry point for scaffolding a ROS 2 package with basic node code
+
+    Steps:
+        - Retrieves available ROS interfaces (topics, services, actions)
+        - Gathers user-defined project configuration via CLI
+        - Creates a ROS 2 package (C++ or Python)
+        - Generates a basic node implementation using templates
+        - Adds dependencies to CMakeLists.txt and package.xml (C++ case)
+        - Registers console script in setup.py (Python case)
+
+    Returns:
+        config (dict): Final project configuration collected from the user
+    """
     all_interfaces = get_all_interfaces()
     config = gather_project_config(all_interfaces)
 
@@ -32,8 +46,8 @@ def main():
         print(f"Generated {out}")
         add_console_script_to_setup(f"{pkg_path}/setup.py",
                                     f"{config['executable']}={config['package_name']}.{config['executable']}_node:main")
+        
     else:
-        # C++
         cpp_code = generate_cpp_code(config)
         out = f"{pkg_path}/src/{config['node_name']}_node.cpp"
         with open(out, 'w+') as f: f.write(cpp_code)
@@ -41,7 +55,8 @@ def main():
 
         # patch CMakeLists.txt & package.xml
         update_cmakelists(cmake_path, config["package_name"], config["node_name"], deps)
-        update_package_xml(package_xml, deps)
+    
+    update_package_xml(package_xml, deps)
 
     return config
 

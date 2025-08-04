@@ -1,7 +1,12 @@
 import re
 
-def generate_cpp_code(config, indent_spaces=2):
-    """Generate a C++ ROS 2 node from configuration for rclcpp"""
+def generate_cpp_code(config, indent_spaces=4):
+    """Generate a C++ ROS 2 node from configuration.
+    
+    Args:
+        config: Dictionary containing node configuration
+        indent_spaces: Number of spaces per indentation level (default: 4)
+    """
     current_indent = 0
     indent_str = ' ' * indent_spaces
     
