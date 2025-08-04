@@ -31,7 +31,7 @@ ROS 2 Project Builder is a development automation tool designed to streamline th
 Clone the repository and install the dependencies:
 
 ```bash
-git clone https://github.com/<your-username>/ros2-project-builder.git
+git clone https://github.com/Madwesh-india/ros2-project-builder.git
 cd ros2-project-builder
 pip install -r requirements.txt
 ````
