@@ -1,4 +1,5 @@
 import re
+from ros_utility import get_ros_distro
 
 def generate_cpp_code(config, indent_spaces=4):
     """Generate a C++ ROS 2 node from configuration.
@@ -171,7 +172,7 @@ def generate_cpp_code(config, indent_spaces=4):
     for client in client_configs:
         srv_type = client['type'].split('/')[-1]
         ns = client['type'].split('/')[0]
-        callback_group = ", rmw_qos_profile_services_default, callback_group_" if config.get('executor') == 'multi_threaded' else ""
+        callback_group = f", {'rmw_qos_profile_services_default' if get_ros_distro() == "humble" else build_qos_profile(client.get('qos', {}))}, callback_group_" if config.get('executor') == 'multi_threaded' else ""
         
         class_def.extend([
             f"{get_indent()}// Service client: {client['name']}",
@@ -195,7 +196,7 @@ def generate_cpp_code(config, indent_spaces=4):
             f"{get_indent()}[this](const std::shared_ptr<{ns}::srv::{srv_type}::Request> request,",
             f"{get_indent()} std::shared_ptr<{ns}::srv::{srv_type}::Response> response) {{",
             f"{increase_indent()}this->{srv['name']}_callback(request, response);",
-            f"{decrease_indent()}}},\n{get_indent()}rmw_qos_profile_services_default" + (f",\n{get_indent()}callback_group_" if config.get('executor') == 'multi_threaded' else ""),
+            f"{decrease_indent()}}},\n{get_indent()}{'rmw_qos_profile_services_default' if get_ros_distro() == "humble" else build_qos_profile(srv.get('qos', {}))}" + (f",\n{get_indent()}callback_group_" if config.get('executor') == 'multi_threaded' else ""),
             f"{decrease_indent()});",
             ""
         ])

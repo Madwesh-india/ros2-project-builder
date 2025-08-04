@@ -8,6 +8,10 @@ import xml.etree.ElementTree as ET
 from xml.dom import minidom
 
 
+def get_ros_distro():
+    return os.environ.get('ROS_DISTRO', 'Unknown')
+
+
 def get_all_interfaces() -> Dict[str, Dict[str, List[str]]]:
     """
     Retrieve all available ROS 2 interfaces (messages, services, actions) from the system.
@@ -127,11 +131,7 @@ def get_interface_details(interface: str) -> Dict:
     else:
         # This should never happen due to earlier validation
         raise ValueError(f"Unsupported interface type: {interface_type}")
-
-
-import os
-import subprocess
-import sys
+    
 
 def create_ros_pkg(path: str, package_name: str, language: str) -> bool:
     """
