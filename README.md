@@ -99,5 +99,3 @@ Contributions, suggestions, and bug reports are welcome. Please open an issue or
 ## 📄 License
 
 This project is licensed under the MIT License. See the [LICENSE](./LICENSE) file for details.
-
-```
