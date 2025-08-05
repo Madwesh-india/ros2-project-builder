@@ -27,36 +27,35 @@ def main():
     all_interfaces = get_all_interfaces()
     config = gather_project_config(all_interfaces)
 
-    if not config["executable"]:
-        config["executable"] = config["node_name"]
+    print(json.dumps(config, indent=2))
 
-    # scaffold the package
-    create_ros_pkg(config["workspace_path"], config["package_name"], config["language"])
+    # # scaffold the package
+    # create_ros_pkg(config["workspace_path"], config["package_name"], config["language"])
 
-    pkg_path = f"{config['workspace_path']}/src/{config['package_name']}"
-    cmake_path = f"{pkg_path}/CMakeLists.txt"
-    package_xml = f"{pkg_path}/package.xml"
+    # pkg_path = f"{config['workspace_path']}/src/{config['package_name']}"
+    # cmake_path = f"{pkg_path}/CMakeLists.txt"
+    # package_xml = f"{pkg_path}/package.xml"
 
-    deps = collect_ros_deps(config)
+    # deps = collect_ros_deps(config)
 
-    if config["language"] == "python":
-        python_code = generate_python_code(config)
-        out = f"{pkg_path}/{config['package_name']}/{config['executable']}_node.py"
-        with open(out, 'w+') as f: f.write(python_code)
-        print(f"Generated {out}")
-        add_console_script_to_setup(f"{pkg_path}/setup.py",
-                                    f"{config['executable']}={config['package_name']}.{config['executable']}_node:main")
+    # if config["language"] == "python":
+    #     python_code = generate_python_code(config)
+    #     out = f"{pkg_path}/{config['package_name']}/{config['executable']}_node.py"
+    #     with open(out, 'w+') as f: f.write(python_code)
+    #     print(f"Generated {out}")
+    #     add_console_script_to_setup(f"{pkg_path}/setup.py",
+    #                                 f"{config['executable']}={config['package_name']}.{config['executable']}_node:main")
         
-    else:
-        cpp_code = generate_cpp_code(config)
-        out = f"{pkg_path}/src/{config['node_name']}_node.cpp"
-        with open(out, 'w+') as f: f.write(cpp_code)
-        print(f"Generated {out}")
+    # else:
+    #     cpp_code = generate_cpp_code(config)
+    #     out = f"{pkg_path}/src/{config['node_name']}_node.cpp"
+    #     with open(out, 'w+') as f: f.write(cpp_code)
+    #     print(f"Generated {out}")
 
-        # patch CMakeLists.txt & package.xml
-        update_cmakelists(cmake_path, config["package_name"], config["node_name"], deps)
+    #     # patch CMakeLists.txt & package.xml
+    #     update_cmakelists(cmake_path, config["package_name"], config["node_name"], deps)
     
-    update_package_xml(package_xml, deps)
+    # update_package_xml(package_xml, deps)
 
     return config
 
