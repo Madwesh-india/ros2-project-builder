@@ -559,8 +559,7 @@ def gather_project_config(interfaces: dict) -> dict:
                 config[pkg_name][node_name]["timer_configs"] = _configure_timers(config[pkg_name][node_name]["timers"])
             
             print()
-    
-        print()
+        print("\n")
 
     print("\n" + "="*60)
     print(" Configuration Complete ".center(60, "-"))

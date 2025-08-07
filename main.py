@@ -26,36 +26,43 @@ def main():
     """
     all_interfaces = get_all_interfaces()
     config = gather_project_config(all_interfaces)
-
-    print(json.dumps(config, indent=2))
-
-    # # scaffold the package
-    # create_ros_pkg(config["workspace_path"], config["package_name"], config["language"])
-
-    # pkg_path = f"{config['workspace_path']}/src/{config['package_name']}"
-    # cmake_path = f"{pkg_path}/CMakeLists.txt"
-    # package_xml = f"{pkg_path}/package.xml"
-
-    # deps = collect_ros_deps(config)
-
-    # if config["language"] == "python":
-    #     python_code = generate_python_code(config)
-    #     out = f"{pkg_path}/{config['package_name']}/{config['executable']}_node.py"
-    #     with open(out, 'w+') as f: f.write(python_code)
-    #     print(f"Generated {out}")
-    #     add_console_script_to_setup(f"{pkg_path}/setup.py",
-    #                                 f"{config['executable']}={config['package_name']}.{config['executable']}_node:main")
-        
-    # else:
-    #     cpp_code = generate_cpp_code(config)
-    #     out = f"{pkg_path}/src/{config['node_name']}_node.cpp"
-    #     with open(out, 'w+') as f: f.write(cpp_code)
-    #     print(f"Generated {out}")
-
-    #     # patch CMakeLists.txt & package.xml
-    #     update_cmakelists(cmake_path, config["package_name"], config["node_name"], deps)
     
-    # update_package_xml(package_xml, deps)
+    # with open("sample.json", "r") as f:
+    #     config = json.loads(f.read())
+    
+    # scaffold the package
+    create_ros_pkg(config)
+
+    for package_name in config["package_name"]:
+        pkg_path = f"{config['workspace_path']}/src/{package_name}"
+        cmake_path = f"{pkg_path}/CMakeLists.txt"
+        package_xml = f"{pkg_path}/package.xml"
+
+        for node_name in config[package_name]["node_name"]:
+            deps = collect_ros_deps(config[package_name][node_name])
+
+            if config[package_name]["language"] == "python":
+                deps.append("rclpy")
+                deps.append("rclpy_action")
+                python_code = generate_python_code(config, package_name, node_name)
+                out = f"{pkg_path}/{package_name}/{config[package_name][node_name]['executable']}_node.py"
+                with open(out, 'w+') as f: f.write(python_code)
+                print(f"Generated {out}")
+                add_console_script_to_setup(f"{pkg_path}/setup.py",
+                                            f"{config[package_name][node_name]['executable']}={package_name}.{config[package_name][node_name]['executable']}_node:main")
+                
+            else:
+                deps.append("rclcpp")
+                deps.append("rclcpp_action")
+                cpp_code = generate_cpp_code(config, package_name, node_name)
+                out = f"{pkg_path}/src/{config[package_name][node_name]['executable']}_node.cpp"
+                with open(out, 'w+') as f: f.write(cpp_code)
+                print(f"Generated {out}")
+
+                # patch CMakeLists.txt & package.xml
+                update_cmakelists(cmake_path, package_name, config[package_name][node_name]['executable'], deps)
+            
+            update_package_xml(package_xml, deps)
 
     return config
 
