@@ -1,7 +1,7 @@
 import re
 from ros_utility import get_ros_distro
 
-def generate_cpp_code(config, indent_spaces=4):
+def generate_cpp_code(config, package_name, node_name, indent_spaces=4):
     """Generate a C++ ROS 2 node from configuration.
     
     Args:
@@ -25,15 +25,15 @@ def generate_cpp_code(config, indent_spaces=4):
         return indent_str * current_indent
     
     # Extract configuration
-    node_name_class = config['node_name'].title().replace('_', '') + 'Node'
-    node_name = config['node_name']
-    publisher_configs = config['publisher_configs'] if config.get('publishers') else []
-    subscriber_configs = config['subscriber_configs'] if config.get('subscribers') else []
-    client_configs = config['client_configs'] if config.get('clients') else []
-    service_configs = config['service_configs'] if config.get('services') else []
-    action_server_configs = config['action_server_configs'] if config.get('action_servers') else []
-    action_client_configs = config['action_client_configs'] if config.get('action_clients') else []
-    timer_configs = config['timer_configs'] if config.get('timers') else []
+    node_name_class = node_name.title().replace('_', '') + 'Node'
+    publisher_configs = config[package_name][node_name]['publisher_configs'] if config[package_name][node_name].get('publishers') else []
+    subscriber_configs = config[package_name][node_name]['subscriber_configs'] if config[package_name][node_name].get('subscribers') else []
+    client_configs = config[package_name][node_name]['client_configs'] if config[package_name][node_name].get('clients') else []
+    service_configs = config[package_name][node_name]['service_configs'] if config[package_name][node_name].get('services') else []
+    action_server_configs = config[package_name][node_name]['action_server_configs'] if config[package_name][node_name].get('action_servers') else []
+    action_client_configs = config[package_name][node_name]['action_client_configs'] if config[package_name][node_name].get('action_clients') else []
+    timer_configs = config[package_name][node_name]['timer_configs'] if config[package_name][node_name].get('timers') else []
+
     
     # Generate includes
     includes = [
@@ -172,7 +172,7 @@ def generate_cpp_code(config, indent_spaces=4):
     for client in client_configs:
         srv_type = client['type'].split('/')[-1]
         ns = client['type'].split('/')[0]
-        callback_group = f", {'rmw_qos_profile_services_default' if get_ros_distro() == "humble" else build_qos_profile(client.get('qos', {}))}, callback_group_" if config.get('executor') == 'multi_threaded' else ""
+        callback_group = f", {'rmw_qos_profile_services_default' if get_ros_distro() == 'humble' else build_qos_profile(client.get('qos', {}))}, callback_group_" if config.get('executor') == 'multi_threaded' else ""
         
         class_def.extend([
             f"{get_indent()}// Service client: {client['name']}",
@@ -196,7 +196,7 @@ def generate_cpp_code(config, indent_spaces=4):
             f"{get_indent()}[this](const std::shared_ptr<{ns}::srv::{srv_type}::Request> request,",
             f"{get_indent()} std::shared_ptr<{ns}::srv::{srv_type}::Response> response) {{",
             f"{increase_indent()}this->{srv['name']}_callback(request, response);",
-            f"{decrease_indent()}}},\n{get_indent()}{'rmw_qos_profile_services_default' if get_ros_distro() == "humble" else build_qos_profile(srv.get('qos', {}))}" + (f",\n{get_indent()}callback_group_" if config.get('executor') == 'multi_threaded' else ""),
+            f"{decrease_indent()}}},\n{get_indent()}{'rmw_qos_profile_services_default' if get_ros_distro() == 'humble' else build_qos_profile(srv.get('qos', {}))}" + (f",\n{get_indent()}callback_group_" if config.get('executor') == 'multi_threaded' else ""),
             f"{decrease_indent()});",
             ""
         ])

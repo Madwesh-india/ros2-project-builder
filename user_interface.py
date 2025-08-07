@@ -91,19 +91,19 @@ def _detect_package_language(pkg_path):
             return "cpp"
     return None
 
-def _validate_package_and_executable(config):
+def _validate_package(config):
     while True:
-        pkg_path = os.path.join(config["workspace_path"], 'src', config["package_name"])
+        pkg_path = os.path.join(config["workspace_path"], 'src', config["package_name"][-1])
         pkg_exists = os.path.exists(pkg_path)
         language = _detect_package_language(pkg_path) if pkg_exists else None
 
         if pkg_exists:
-            print(f"\nPackage '{config['package_name']}' already exists.")
-            if language == config["language"]:
+            print(f"\nPackage '{config['package_name'][-1]}' already exists.")
+            if language == config[config["package_name"][-1]]["language"]:
                 print(f"Package is already using language: {language}")
                 reuse = questionary.confirm("Do you want to continue with this package?").ask()
                 if not reuse:
-                    config["package_name"] = _get_validated_name(
+                    config["package_name"][-1] = _get_validated_name(
                         "Enter a new package name:",
                         name_type="package"
                     )
@@ -119,42 +119,52 @@ def _validate_package_and_executable(config):
                 ).ask()
 
                 if choice == "Change package name":
-                    config["package_name"] = _get_validated_name(
+                    config["package_name"][-1] = _get_validated_name(
                         "Enter a new package name:",
                         name_type="package"
                     )
                 else:
-                    config["language"] = language
+                    config[config["package_name"][-1]]["language"] = language
 
                 continue
-            
-            while True:
-                # Check executable file
-                exec_name = config['executable'] if config['executable'] else config['node_name']
-                exec_filename = f"{config['package_name']}/{exec_name}_node.py" if config["language"] == "python" else f"src/{exec_name}_node.cpp"
-                exec_path = os.path.join(pkg_path, exec_filename)
-                print(exec_path)
-                if os.path.exists(exec_path):
-                    print(f"\nExecutable '{exec_filename}' already exists in the package.")
-
-                    if config['executable']:
-                        config['executable'] = _get_validated_name(
-                            "Enter a new executable name:",
-                            name_type="executable"
-                        )
-                    else:
-                        config['node_name'] = _get_validated_name(
-                            "Enter a new node_name name:",
-                            name_type="base"
-                        )
-                    continue
-                else:
-                    break
 
         break
 
     return config
 
+def _validate_executable(config):
+    pkg_path = os.path.join(config["workspace_path"], 'src', config["package_name"][-1])
+
+    config_node = config[config["package_name"][-1]]
+    
+    while True:
+        # Check executable file
+        node_name = config_node["node_name"][-1]
+        exec_name = config_node[node_name]['executable'] if config_node[node_name]['executable'] else node_name
+        exec_filename = f"{config['package_name']}/{exec_name}_node.py" if config_node["language"] == "python" else f"src/{exec_name}_node.cpp"
+        exec_path = os.path.join(pkg_path, exec_filename)
+
+        if os.path.exists(exec_path):
+            print(f"\nExecutable '{exec_filename}' already exists in the package.")
+
+            if config_node[node_name]['executable']:
+                config_node[node_name]['executable'] = _get_validated_name(
+                    "Enter a new executable name:",
+                    name_type="executable"
+                )
+            else:
+                config_node['node_name'][-1] = _get_validated_name(
+                    "Enter a new node_name name:",
+                    name_type="base"
+                )
+            continue
+        else:
+            break
+    
+    config[config["package_name"][-1]] = config_node
+
+        
+    return config
 
 def _validate_name(name: str, name_type: str = "base") -> bool:
     """
@@ -445,88 +455,112 @@ def gather_project_config(interfaces: dict) -> dict:
     # Core project settings with name validation
     config = {
         "workspace_path": ws_path,
-        "package_name": _get_validated_name(
-            "Enter package name:",
-            name_type="package"
-        ),
-        "language": questionary.select(
-            "Select implementation language:",
-            choices=[
-                "python",
-                "cpp"
-            ],
-            default="python"
-        ).ask(),
-        "node_name": _get_validated_name(
-            "Enter node name:",
-            name_type="base"
-        ),
-        "executable": _get_validated_name(
-            "Enter executable name (If empty uses node_name):",
-            default="",
-            name_type="executable"
-        ),
+        "package_name": []
     }
 
-    config = _validate_package_and_executable(config)
+    while questionary.confirm("Do you want to add package?").ask():
+        pkg_name = _get_validated_name(
+            "Enter package name:",
+            name_type="package"
+        )
 
-    # Component quantities
-    print("\nComponent Quantities")
-    print("--------------------")
-    config.update({
-        "publishers": _get_positive_int("Number of publishers:", "0"),
-        "subscribers": _get_positive_int("Number of subscribers:", "0"),
-        "clients": _get_positive_int("Number of service clients:", "0"),
-        "services": _get_positive_int("Number of service servers:", "0"),
-        "action_servers": _get_positive_int("Number of action servers:", "0"),
-        "action_clients": _get_positive_int("Number of action clients:", "0"),
-        "timers": _get_positive_int("Number of timers:", "0")
-    })
+        config["package_name"].append(pkg_name)
 
-    # C++ specific configuration
-    config["executor"] = questionary.select(
-        "Select executor type:",
-        choices=[
-            "single_threaded",
-            "multi_threaded"
-        ],
-        default="single_threaded"
-    ).ask()
+        config[pkg_name] = {
+            "node_name": [],
+            "language": questionary.select(
+            "Select implementation language:",
+                choices=[
+                    "python",
+                    "cpp"
+                ],
+                default="python"
+            ).ask(),
+        }
 
-    # Detailed component configuration
-    if config["publishers"] > 0:
-        config["publisher_configs"] = _configure_components(
-            config["publishers"], "Publisher", interfaces
-        )
-    
-    if config["subscribers"] > 0:
-        config["subscriber_configs"] = _configure_components(
-            config["subscribers"], "Subscriber", interfaces
-        )
-    
-    if config["clients"] > 0:
-        config["client_configs"] = _configure_components(
-            config["clients"], "Client", interfaces
-        )
-    
-    if config["services"] > 0:
-        config["service_configs"] = _configure_components(
-            config["services"], "Service", interfaces
-        )
-    
-    if config["action_servers"] > 0:
-        config["action_server_configs"] = _configure_components(
-            config["action_servers"], "ActionServer", interfaces
-        )
-    
-    if config["action_clients"] > 0:
-        config["action_client_configs"] = _configure_components(
-            config["action_clients"], "ActionClient", interfaces
-        )
-    
-    if config["timers"] > 0:
-        config["timer_configs"] = _configure_timers(config["timers"])
-    
+        config = _validate_package(config)
+
+        while questionary.confirm("Do you want to add script?").ask():
+            node_name = _get_validated_name(
+                "Enter node name:",
+                name_type="base"
+            )
+
+            config[pkg_name]["node_name"].append(node_name)
+
+            config[pkg_name][node_name] = {}
+
+            config[pkg_name][node_name]["executable"] = _get_validated_name(
+                "Enter executable name (If empty uses node_name):",
+                default="",
+                name_type="executable"
+            )
+
+            config = _validate_executable(config)
+
+            if not config[pkg_name][node_name]["executable"]:
+                config[pkg_name][node_name]["executable"] = node_name
+
+            # Component quantities
+            print("\nComponent Quantities")
+            print("--------------------")
+            config[pkg_name][node_name].update({
+                "publishers": _get_positive_int("Number of publishers:", "0"),
+                "subscribers": _get_positive_int("Number of subscribers:", "0"),
+                "clients": _get_positive_int("Number of service clients:", "0"),
+                "services": _get_positive_int("Number of service servers:", "0"),
+                "action_servers": _get_positive_int("Number of action servers:", "0"),
+                "action_clients": _get_positive_int("Number of action clients:", "0"),
+                "timers": _get_positive_int("Number of timers:", "0")
+            })
+
+            # C++ specific configuration
+            config[pkg_name][node_name]["executor"] = questionary.select(
+                "Select executor type:",
+                choices=[
+                    "single_threaded",
+                    "multi_threaded"
+                ],
+                default="single_threaded"
+            ).ask()
+
+            # Detailed component configuration
+            if config[pkg_name][node_name]["publishers"] > 0:
+                config[pkg_name][node_name]["publisher_configs"] = _configure_components(
+                    config[pkg_name][node_name]["publishers"], "Publisher", interfaces
+                )
+            
+            if config[pkg_name][node_name]["subscribers"] > 0:
+                config[pkg_name][node_name]["subscriber_configs"] = _configure_components(
+                    config[pkg_name][node_name]["subscribers"], "Subscriber", interfaces
+                )
+            
+            if config[pkg_name][node_name]["clients"] > 0:
+                config[pkg_name][node_name]["client_configs"] = _configure_components(
+                    config[pkg_name][node_name]["clients"], "Client", interfaces
+                )
+            
+            if config[pkg_name][node_name]["services"] > 0:
+                config[pkg_name][node_name]["service_configs"] = _configure_components(
+                    config[pkg_name][node_name]["services"], "Service", interfaces
+                )
+            
+            if config[pkg_name][node_name]["action_servers"] > 0:
+                config[pkg_name][node_name]["action_server_configs"] = _configure_components(
+                    config[pkg_name][node_name]["action_servers"], "ActionServer", interfaces
+                )
+            
+            if config[pkg_name][node_name]["action_clients"] > 0:
+                config[pkg_name][node_name]["action_client_configs"] = _configure_components(
+                    config[pkg_name][node_name]["action_clients"], "ActionClient", interfaces
+                )
+            
+            if config[pkg_name][node_name]["timers"] > 0:
+                config[pkg_name][node_name]["timer_configs"] = _configure_timers(config[pkg_name][node_name]["timers"])
+            
+            print()
+        print("\n")
+
     print("\n" + "="*60)
     print(" Configuration Complete ".center(60, "-"))
     print("="*60 + "\n")

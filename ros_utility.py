@@ -133,64 +133,52 @@ def get_interface_details(interface: str) -> Dict:
         raise ValueError(f"Unsupported interface type: {interface_type}")
     
 
-def create_ros_pkg(path: str, package_name: str, language: str) -> bool:
+def create_ros_pkg(config: Dict) -> bool:
     """
     Create a ROS 2 package
     
     Args:
-        path: Workspace path (must contain 'src' directory)
-        package_name: Name for the new package
-        language: 'python' or 'cpp'
-        
-    Returns:
-        bool: True if successful, False otherwise
+        config: The full config of the setup
     """
+
     # Validate inputs
-    src_path = os.path.join(path, "src")
+    src_path = os.path.join(config["workspace_path"], "src")
     if not os.path.isdir(src_path):
-        print(f"Error: Missing 'src' directory in {path}", file=sys.stderr)
+        print(f"Error: Missing 'src' directory in {config['workspace_path']}", file=sys.stderr)
         return False
 
-    if language not in ("python", "cpp"):
-        print(f"Error: Unsupported language '{language}'", file=sys.stderr)
-        return False
+    for package_name in config["package_name"]:
+        # Check if package already exists
+        pkg_path = os.path.join(src_path, package_name)
+        if os.path.exists(pkg_path):
+            print(f"Package '{package_name}' already exists at {pkg_path}")
 
-    # Check if package already exists
-    pkg_path = os.path.join(src_path, package_name)
-    if os.path.exists(pkg_path):
-        print(f"Package '{package_name}' already exists at {pkg_path}")
-        return False
+        language = config[package_name]["language"]
 
-    # Configure command based on language
-    build_type, deps = ("ament_python", "rclpy") if language == "python" else ("ament_cmake", "rclcpp")
-    
-    cmd = [
-        "ros2", "pkg", "create",
-        package_name,
-        "--build-type", build_type,
-        "--dependencies", deps,
-        "--destination-directory", src_path
-    ]
-
-    # Execute command
-    try:
-        print(f"Creating {language} package '{package_name}'...")
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=True
-        )
-        print(f"Success! Package created at: {pkg_path}")
-        return True
+        # Configure command based on language
+        build_type, deps = ("ament_python", "rclpy") if language == "python" else ("ament_cmake", "rclcpp")
         
-    except subprocess.CalledProcessError as e:
-        print(f"Failed to create package: {e.stderr}", file=sys.stderr)
-        return False
-        
-    except FileNotFoundError:
-        print("Error: 'ros2' command not found - is ROS 2 sourced?", file=sys.stderr)
-        return False
+        cmd = [
+            "ros2", "pkg", "create",
+            package_name,
+            "--build-type", build_type,
+            "--dependencies", deps,
+            "--destination-directory", src_path
+        ]
+
+        # Execute command
+        try:
+            print(f"Creating {language} package '{package_name}'...")
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=True
+            )
+            print(f"Success! Package created at: {pkg_path}")
+            
+        except subprocess.CalledProcessError as e:
+            print(f"Failed to create package: {e.stderr}", file=sys.stderr)
 
 
 def add_console_script_to_setup(setup_path, new_entry):
@@ -244,16 +232,11 @@ def collect_ros_deps(config):
         deps.add(pkg_from_type(srv["type"]))
     for action in config.get("action_server_configs", []):
         deps.add(pkg_from_type(action["type"]))
-        deps.add("rclcpp_action")
     for action in config.get("action_client_configs", []):
         deps.add(pkg_from_type(action["type"]))
-        deps.add("rclcpp_action")
-    # plus always rclcpp
-    deps.add("rclcpp")
-    deps.add("rclcpp_action")
     return sorted(deps)
 
-def update_cmakelists(cmake_path, pkg_name, node_name, deps):
+def update_cmakelists(cmake_path, pkg_name, executable_name, deps):
     """
     Updates CMakeLists.txt to:
     - Add missing find_package(...) lines after '# find dependencies'
@@ -288,15 +271,15 @@ def update_cmakelists(cmake_path, pkg_name, node_name, deps):
     text = re.sub(r'\n?ament_package\(\)\n?', '', text)
 
     # Append executable and dependencies
-    if f'add_executable({node_name}_node' not in text:
-        text += f'\n\n# Auto-generated node\nadd_executable({node_name}_node src/{node_name}_node.cpp)'
+    if f'add_executable({executable_name}_node' not in text:
+        text += f'\n\n# Auto-generated node\nadd_executable({executable_name}_node src/{executable_name}_node.cpp)'
 
-    if f'ament_target_dependencies({node_name}_node' not in text:
+    if f'ament_target_dependencies({executable_name}_node' not in text:
         deps_line = ' '.join(deps)
-        text += f'\nament_target_dependencies({node_name}_node {deps_line})'
+        text += f'\nament_target_dependencies({executable_name}_node {deps_line})'
 
     # Ensure separate install(TARGETS ...) line for this node
-    install_line = f'install(TARGETS {node_name}_node DESTINATION lib/${{PROJECT_NAME}})'
+    install_line = f'install(TARGETS {executable_name}_node DESTINATION lib/${{PROJECT_NAME}})'
     if install_line not in text:
         text += f'\n{install_line}'
 
